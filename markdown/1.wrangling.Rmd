@@ -1,0 +1,112 @@
+---
+title: "1.wrangling"
+output: html_document
+---
+# Setup  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Libraries
+library(tidyverse)
+library(ggthemes)
+library(readxl)
+library(sf)
+library(USAboundaries)
+
+```
+
+```{r theme}
+theme_set(
+  theme_excel()+
+  theme(panel.grid = element_line(size=.1))
+)
+```
+
+```{r df}
+df <- read_excel("../data/meta.xlsx", 
+                 sheet = 1)
+```
+
+# EDA  
+```{r summary}
+df %>% glimpse
+```
+
+
+```{r slice 1}
+df %>%
+  dplyr::select(study,
+                resp,
+                LRR,
+                LRRyield)
+```
+need to replace . with NAs on LRRyield and elsewhere
+bio and den can appear in same study (not exclusive)  
+
+# Wrangling  
+```{r df_w}
+df_w <- df %>%
+  # Changing . to NA
+  mutate(across(everything(), 
+                ~ifelse(. == ".",NA, .))) %>%
+  # Changing some column types to numeric
+  mutate(across(c(lat, long,
+                  OM_pct, pH,
+                  cc_plant.DOY,  
+                  cc_plant.kgha, 
+                  cc_term.DOY,
+                  cc_bio_Mgha,
+                  crop_plant.DOY,
+                  term.plant.diff,
+                  LRRyield
+                  ),
+                ~as.numeric(.)
+                ))
+  
+  
+df_w %>% 
+  glimpse
+```
+
+
+```{r separating resp}
+df_w %>%
+  filter(resp == "den") %>%
+  rename(LRRden=LRR) %>%
+  dplyr::select(-resp) %>%
+  write_csv("../data/den_w.csv")
+
+df_w %>%
+  filter(resp == "bio") %>%
+    rename(LRRbio=LRR) %>%
+  dplyr::select(-resp) %>%
+  write_csv("../data/bio_w.csv")
+```
+
+
+weed biomass under CC is 0.5 Mg/ha
+weed biomass under no cc is 2 Mg/ha
+```{r testing LRR results}
+# CC reduced weed biomass
+log(.5/2) #-1.386294
+
+# No effect of CC on weed biomass
+log(2/2) #0
+
+# CC increased weed biomass
+log(2/.5) #1.386294
+
+
+```
+for weed LRR, smaller/negative is better (CC suppressed weed).
+
+for crop yield LRR, greater/positive is better (CC enhanced weed)
+
+
+
+
+
+
+
+
+

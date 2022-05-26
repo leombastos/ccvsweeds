@@ -1,0 +1,264 @@
+---
+title: "2.EDA"
+output: html_document
+---
+
+# Setup  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Libraries
+library(tidyverse)
+library(ggthemes)
+library(readxl)
+library(sf)
+library(USAboundaries)
+library(partykit)
+
+```
+
+```{r theme}
+theme_set(
+  theme_excel()+
+    theme(panel.grid = element_line(size=.1))
+)
+```
+
+```{r den_w}
+den_w <- read_csv("../data/den_w.csv") %>%
+  mutate_if(is.character, as.factor)
+
+den_w
+```
+
+# EDA 
+## Summaries
+```{r den summary}
+den_w %>%
+  summary
+```
+```{r den NAs}
+den_w %>%
+  summarise_all(~ sum(is.na(.))) %>%
+  pivot_longer(everything()) %>%
+  mutate(propNA=round((value/139)*100,0)) %>%
+  filter(propNA > 50)
+```
+Need to remove above variables from CIT.
+
+```{r observations per state}
+den_w %>%
+  group_by(loc_state) %>%
+  tally
+
+```
+
+```{r studies per state}
+den_w %>%
+  group_by(loc_state, study) %>%
+  tally() %>%
+  group_by(loc_state) %>%
+  tally()
+
+```
+
+## Density distribution
+```{r LRRden density plot}
+den_w %>%
+  ggplot(aes(x=LRRden))+
+  geom_density()+
+  geom_vline(xintercept = 0,
+             color = "red")
+```
+
+```{r prop CC decreased den}
+den_w %>%
+  mutate(quad=ifelse(LRRden <= 0, "win", "loss")) %>%
+  group_by(quad) %>%
+  tally() %>%
+  mutate(prop=round((n/139)*100,0))
+
+```
+
+```{r LRRyield density}
+den_w %>%
+  ggplot(aes(x=LRRyield))+
+  geom_density()+
+  geom_vline(xintercept = 0,
+             color = "red")
+```
+```{r prop CC increased yield}
+den_w %>%
+  drop_na(LRRyield) %>%
+  mutate(quad=ifelse(LRRyield > 0, "win", "loss")) %>%
+  group_by(quad) %>%
+  tally() %>%
+  mutate(prop=round((n/101)*100,0))
+
+```
+## Density CIT  
+```{r den partykit}
+den_w %>%
+  dplyr::select(pub_year, 
+    decade,
+    study_duration,
+    loc_state,
+    lat, long, 
+    soil_type,
+    cc_spec,
+    cc_type,
+    tillage_sys,
+    cc_plant.kgha,
+    cc_pMETH,
+    cc_term.METH,
+    cc_term.METH2,
+    add_herb,
+    cc_bio_Mgha,
+    crop,
+    `weed type`,
+    weed.sing.com,
+    weed.spp,
+    LRRden,
+    #LRRyield
+  ) %>%
+  ctree(LRRden ~ .,
+        data = .) %>%
+  plot
+```
+```{r den vs pub_year}
+den_w %>%
+  ggplot(aes(x=pub_year, y=LRRden))+
+  geom_point()+
+  geom_smooth(method="lm")
+```
+
+```{r den vs cc_bio_Mgha}
+den_w %>%
+  ggplot(aes(x=cc_bio_Mgha, y=LRRden))+
+  geom_point()+
+  geom_smooth(method="lm")
+```
+
+```{r den vs study_duration}
+den_w %>%
+  ggplot(aes(x=study_duration, y=LRRden))+
+  geom_point()+
+  geom_quantile(quantiles = c(.5, .99))
+```
+
+## Density x yield quadrants CIT
+```{r den vs yield}
+den_w %>%
+  filter(LRRyield > -2) %>% #one outlier
+  ggplot(aes(x=LRRden, y=LRRyield))+
+  geom_point(color="purple")+
+  geom_smooth()+
+  geom_vline(xintercept = 0)+
+  geom_hline(yintercept = 0)+
+  geom_rug()
+
+```
+
+```{r den_q}
+den_q <- den_w %>%
+  mutate(quad=case_when(
+    LRRden <= 0 & LRRyield > 0 ~ "w-w",
+    LRRden <= 0 & LRRyield <= 0 ~ "w-l",
+    LRRden > 0 & LRRyield > 0 ~ "l-w",
+    LRRden > 0 & LRRyield <= 0 ~ "l-l"
+  )) %>%
+  mutate(quad=factor(quad))
+
+den_q
+```
+
+```{r quadrant counts}
+den_q %>%
+  drop_na(LRRden, LRRyield) %>%
+  group_by(quad) %>%
+  tally
+
+```
+
+```{r den quad party}
+den_q %>%
+  dplyr::select(pub_year, 
+    decade,
+    study_duration,
+    loc_state,
+    lat, long, 
+    soil_type,
+    cc_spec,
+    cc_type,
+    tillage_sys,
+    cc_plant.kgha,
+    cc_pMETH,
+    cc_term.METH,
+    cc_term.METH2,
+    add_herb,
+    cc_bio_Mgha,
+    crop,
+    `weed type`,
+    weed.sing.com,
+    weed.spp,
+    quad
+    #LRRden,
+    #LRRyield
+  ) %>%
+  drop_na(quad) %>%
+  ctree(quad ~ .,
+        data = .) %>%
+  plot
+```
+
+## Spatial
+```{r missing long but not lat}
+den_q %>%
+  distinct(pub_reference, long, lat) %>%
+  filter(is.na(long) & !(is.na(lat)))
+```
+
+Look into these above. How does it have lat but not long?  
+
+```{r den_sp}
+den_sp <- den_q %>%
+  drop_na(long, lat, quad) %>%
+  st_as_sf(coords = c("long", "lat")) %>%
+  st_set_crs(value = 4326)
+  
+
+den_sp
+```
+
+
+```{r states}
+states <- us_states() %>%
+  dplyr::select(state_name, state_abbr) %>%
+  filter(!(state_name %in% c("Hawaii", 
+                             "Alaska",
+                             "Puerto Rico"))) %>%
+  st_transform(crs = 4326)
+
+states
+```
+
+```{r map}
+ggplot()+
+  geom_sf(data=states)+
+  geom_sf(data=den_sp)
+```
+
+```{r states filtered}
+states_se <- states %>%
+  filter(state_abbr %in% unique(den_sp$loc_state))
+
+ggplot()+
+  geom_sf(data=states_se)+
+  geom_sf(data=den_sp #%>% st_jitter(.3)
+          ,
+          aes(color=quad),
+          size=.7,
+          show.legend = F)+
+  facet_wrap(~quad)
+
+```
