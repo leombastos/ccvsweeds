@@ -262,3 +262,29 @@ ggplot()+
   facet_wrap(~quad)
 
 ```
+
+## CC biomass
+```{r bio vs cc biomass}
+den_w %>%
+    mutate(grass=ifelse(cc_type=="grass",
+                      "grass",
+                      "other")) %>%
+  ggplot(aes(x=cc_bio_Mgha, 
+             y=LRRden,
+             color=grass))+
+  geom_point()+
+  geom_smooth(method="lm")
+
+```
+
+```{r yield vs cc biomass}
+den_w %>%
+  mutate(grass=ifelse(cc_type=="grass",
+                      "grass",
+                      "other")) %>%
+  filter(LRRyield > -2) %>%
+  ggplot(aes(x=cc_bio_Mgha, y=LRRyield, color=grass))+
+  geom_point()+
+  geom_smooth(method="lm")
+
+```
