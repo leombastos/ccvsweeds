@@ -96,6 +96,7 @@ bio_w %>%
   mutate(prop=round((n/83)*100,0))
 
 ```
+
 ## Biomass CIT  
 ```{r bio partykit}
 bio_w %>%
@@ -191,6 +192,7 @@ bio_q %>%
   plot
 ```
 
+
 ## Spatial
 ```{r missing long but not lat}
 bio_q %>%
@@ -246,27 +248,28 @@ ggplot()+
 ## CC biomass
 ```{r bio vs cc biomass}
 bio_w %>%
-      mutate(grass=ifelse(cc_type=="grass",
-                      "grass",
-                      "other")) %>%
-
-  ggplot(aes(x=cc_bio_Mgha, 
-             y=LRRbio,
-             color=grass))+
+  ggplot(aes(x=cc_bio_Mgha, y=LRRbio,
+             color=cc_type))+
   geom_point()+
-  geom_smooth(method="lm")
+  geom_smooth(method = "lm")
 
+names(bio_w)
 ```
 
 ```{r yield vs cc biomass}
 bio_w %>%
-  mutate(grass=ifelse(cc_type=="grass",
-                      "grass",
-                      "other")) %>%
-  filter(LRRyield < 2) %>%
-  ggplot(aes(x=cc_bio_Mgha, y=LRRyield, color=grass))+
+  ggplot(aes(x=cc_bio_Mgha, y=LRRyield))+
   geom_point()+
-  geom_smooth(method="lm")
+  geom_smooth(method = "lm")
 
 ```
+
+```{r}
+bio_w %>%
+  ggplot(aes(y=cc_bio_Mgha, x=cc_type))+
+  geom_point()+
+  geom_boxplot()
+```
+
+
 

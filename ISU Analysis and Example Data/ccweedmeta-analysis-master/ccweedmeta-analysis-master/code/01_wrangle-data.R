@@ -122,8 +122,15 @@ d4 <-
 # step 5 adjust extreme value ---------------------------------------------
 #based on leave-one-out sensitivity analysis
 
-secondmin <- d4 %>% filter(obs_no == 145) %>% select(bioLRR) %>% pull()
-d4 %>% filter(obs_no == 76) %>% select(bioLRR) %>% pull()
+secondmin <- d4 %>% 
+  filter(obs_no == 145) %>% 
+  select(bioLRR) %>% 
+  pull()
+
+d4 %>% 
+  filter(obs_no == 76) %>% 
+  select(bioLRR) %>% 
+  pull()
 
 d5 <-
   d4 %>% 

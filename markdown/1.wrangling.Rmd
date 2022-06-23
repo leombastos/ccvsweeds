@@ -23,15 +23,16 @@ theme_set(
 ```
 
 ```{r df}
-df <- read_excel("../data/meta.xlsx", 
+df <- read_excel("../data/meta2.xlsx", 
                  sheet = 1)
 ```
+
+meta2.xlsx was added on June 2th and it has corrected missing  long/lat data for a few papers.  
 
 # EDA  
 ```{r summary}
 df %>% glimpse
 ```
-
 
 ```{r slice 1}
 df %>%
@@ -61,7 +62,8 @@ df_w <- df %>%
                   LRRyield
                   ),
                 ~as.numeric(.)
-                ))
+                )) %>%
+  mutate(weight = (sample_size * sample_size) / (sample_size + sample_size))
   
   
 df_w %>% 

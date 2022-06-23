@@ -3,7 +3,8 @@ title: "2.EDA"
 output: html_document
 ---
 
-# Setup  
+# Setup
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 
@@ -31,12 +32,25 @@ den_w <- read_csv("../data/den_w.csv") %>%
 den_w
 ```
 
-# EDA 
+```{r checking weight}
+df_w %>%
+  ggplot(aes(x=wgt, y=weight))+
+  geom_point()+
+  geom_abline()
+
+```
+
+Weights didn't match, need to check with David how did he calculate weights.
+
+# EDA
+
 ## Summaries
+
 ```{r den summary}
 den_w %>%
   summary
 ```
+
 ```{r den NAs}
 den_w %>%
   summarise_all(~ sum(is.na(.))) %>%
@@ -44,6 +58,7 @@ den_w %>%
   mutate(propNA=round((value/139)*100,0)) %>%
   filter(propNA > 50)
 ```
+
 Need to remove above variables from CIT.
 
 ```{r observations per state}
@@ -63,6 +78,7 @@ den_w %>%
 ```
 
 ## Density distribution
+
 ```{r LRRden density plot}
 den_w %>%
   ggplot(aes(x=LRRden))+
@@ -87,6 +103,7 @@ den_w %>%
   geom_vline(xintercept = 0,
              color = "red")
 ```
+
 ```{r prop CC increased yield}
 den_w %>%
   drop_na(LRRyield) %>%
@@ -96,10 +113,13 @@ den_w %>%
   mutate(prop=round((n/101)*100,0))
 
 ```
-## Density CIT  
+
+## Density CIT
+
 ```{r den partykit}
 den_w %>%
-  dplyr::select(pub_year, 
+  dplyr::select(
+    pub_year, 
     decade,
     study_duration,
     loc_state,
@@ -125,6 +145,7 @@ den_w %>%
         data = .) %>%
   plot
 ```
+
 ```{r den vs pub_year}
 den_w %>%
   ggplot(aes(x=pub_year, y=LRRden))+
@@ -136,23 +157,26 @@ den_w %>%
 den_w %>%
   ggplot(aes(x=cc_bio_Mgha, y=LRRden))+
   geom_point()+
-  geom_smooth(method="lm")
+  geom_smooth(method="lm")+
+  geom_vline(xintercept = 3.3)
 ```
 
 ```{r den vs study_duration}
 den_w %>%
   ggplot(aes(x=study_duration, y=LRRden))+
   geom_point()+
-  geom_quantile(quantiles = c(.5, .99))
+  #geom_smooth(method="lm")
+  geom_quantile(quantiles = c(.05, .5, .95))
 ```
 
 ## Density x yield quadrants CIT
+
 ```{r den vs yield}
 den_w %>%
   filter(LRRyield > -2) %>% #one outlier
   ggplot(aes(x=LRRden, y=LRRyield))+
   geom_point(color="purple")+
-  geom_smooth()+
+  #geom_smooth()+
   geom_vline(xintercept = 0)+
   geom_hline(yintercept = 0)+
   geom_rug()
@@ -176,7 +200,8 @@ den_q
 den_q %>%
   drop_na(LRRden, LRRyield) %>%
   group_by(quad) %>%
-  tally
+  tally() %>%
+  mutate(prop=round((n/101)*100,0))
 
 ```
 
@@ -212,13 +237,17 @@ den_q %>%
 ```
 
 ## Spatial
+
 ```{r missing long but not lat}
 den_q %>%
   distinct(pub_reference, long, lat) %>%
   filter(is.na(long) & !(is.na(lat)))
 ```
 
-Look into these above. How does it have lat but not long?  
+Smith et al., 2011\
+Wells et al., 2013
+
+Look into these above. How does it have lat but not long?
 
 ```{r den_sp}
 den_sp <- den_q %>%
@@ -229,7 +258,6 @@ den_sp <- den_q %>%
 
 den_sp
 ```
-
 
 ```{r states}
 states <- us_states() %>%
@@ -258,33 +286,15 @@ ggplot()+
           ,
           aes(color=quad),
           size=.7,
-          show.legend = F)+
+          show.legend = F)#+
   facet_wrap(~quad)
 
 ```
 
-## CC biomass
-```{r bio vs cc biomass}
-den_w %>%
-    mutate(grass=ifelse(cc_type=="grass",
-                      "grass",
-                      "other")) %>%
-  ggplot(aes(x=cc_bio_Mgha, 
-             y=LRRden,
-             color=grass))+
-  geom_point()+
-  geom_smooth(method="lm")
+# Meeting May 27th
 
-```
+Look into pu_year vs den slope with and w/o earliest data, see magnitude and p-value. Look into cc_bio vs den, perhaps non-sig relationship \< 3.3 and significant when \> 3.3.
 
-```{r yield vs cc biomass}
-den_w %>%
-  mutate(grass=ifelse(cc_type=="grass",
-                      "grass",
-                      "other")) %>%
-  filter(LRRyield > -2) %>%
-  ggplot(aes(x=cc_bio_Mgha, y=LRRyield, color=grass))+
-  geom_point()+
-  geom_smooth(method="lm")
+# To-do
 
-```
+Send CIT paper to David Sensitivity analysis (read/run)
