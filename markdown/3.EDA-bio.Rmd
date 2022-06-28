@@ -132,7 +132,6 @@ bio_w %>%
 bio_w %>%
   ggplot(aes(x=LRRbio, y=LRRyield))+
   geom_point(color="purple")+
-  geom_smooth()+
   geom_vline(xintercept = 0)+
   geom_hline(yintercept = 0)+
   geom_rug()
@@ -141,6 +140,7 @@ bio_w %>%
 
 ```{r bio_q}
 bio_q <- bio_w %>%
+  drop_na(LRRyield) %>%
   mutate(quad=case_when(
     LRRbio <= 0 & LRRyield > 0 ~ "w-w",
     LRRbio <= 0 & LRRyield <= 0 ~ "w-l",
@@ -156,7 +156,8 @@ bio_q
 bio_q %>%
   drop_na(LRRbio, LRRyield) %>%
   group_by(quad) %>%
-  tally
+  tally() %>%
+  mutate(prop=n/83)
 
 ```
 

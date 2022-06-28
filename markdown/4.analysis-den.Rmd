@@ -204,6 +204,183 @@ den_w %>%
 
 ```
 
+```{r contrasts}
+themods <- c("cc_type", "cc_term.METH2", 
+             "tillage_sys")
+
+denmc <- RunModelModsContrastFun(mydata = den_w, 
+                                 mymod = themods[1])
+
+for (i in 2:length(themods)){
+  tmp <- RunModelModsContrastFun(mydata = den_w, 
+                                 mymod = themods[i])
+  suppressWarnings(
+  denmc <- bind_rows(denmc, tmp)
+  )
+}
+
+```
+```{r continuous modifiers}
+# jsut for reference
+thecontmods <- c("pub_year", 
+                 "lat", "long",
+                 "cc_bio_Mgha")
+
+
+#--density
+denmcont <- RunModelContModsFun(mydata = den_w, 
+                                mymod = thecontmods[1])
+
+for (i in 2:length(thecontmods)){
+  tmp <- RunModelContModsFun(mydata = den_w, 
+                             mymod = thecontmods[i])
+  denmcont <- bind_rows(denmcont, tmp)
+}
+
+```
+```{r}
+contmodres <- denmcont
+
+contmodres %>% 
+  write_csv("../output/den-ss_contmods.csv")
+```
+
+# LRR vs cc_bio  
+```{r}
+den_w %>%
+  drop_na(LRR, cc_bio_Mgha) %>%
+  ggplot(aes(y=LRR, x=cc_bio_Mgha))+
+  geom_point()+
+  geom_smooth(method="lm")
+```
+## Linear
+```{r den_lm}
+den_lm <- lm(LRR ~ cc_bio_Mgha, 
+     data = den_w %>%
+       drop_na(LRR, cc_bio_Mgha)
+     )
+
+den_lm 
+
+AICcmodavg::AICc(den_lm)
+BIC(den_lm)
+```
+
+
+## LP
+```{r f.lrp}
+f.lrp <- function(x, a, b, tx) {
+  ifelse(x > tx, 
+         a + b * tx, 
+         a + b * x)}
+```
+
+```{r linp_mod}
+linp_mod <- nls(LRR ~ f.lrp(cc_bio_Mgha, a, b, tx),
+                data = den_w,
+                start = list(a = -0.1,
+                              b = -.1,
+                              tx = 3)
+                )
+
+linp_mod
+
+summary(linp_mod)
+
+library(Metrics)
+
+BIC(linp_mod)
+```
+
+```{r lp res}
+plot(linp_mod)
+```
+
+```{r den_w_aug}
+den_w_aug <- augment(linp_mod, data=den_w) %>%
+  mutate(.stdresid=resid(linp_mod, type="pearson", scaled=T))
+  
+  
+den_w_aug
+```
+
+```{r lp final plot}
+ggplot(den_w_aug, aes(x=cc_bio_Mgha, y=LRR))+
+  geom_point()+
+  geom_line(aes(y=.fitted), color="purple")
+```
+
+## QP  
+```{r f.qp}
+# a = intercept
+# b = slope
+# c = quadratic term (curvy bit)
+# tx = join point = break point = critical concentration
+
+f.qp <- function(x, a, b, tx) {
+    c <- -0.5 * b / tx
+    if_else(condition = x < tx,
+            true  = a + (b * x) + (c * x * x),
+            false = a + (b * tx) + (c * tx * tx))
+}
+```
+
+```{r qp_mod}
+qp_mod <- nls(LRR ~ f.qp(cc_bio_Mgha, a, b, tx),
+                data = den_w,
+                start = list(a = -0.1,
+                              b = -.1,
+                              tx = 3)
+                )
+
+qp_mod
+
+summary(qp_mod)
+
+BIC(qp_mod)
+```
+
+```{r qp res}
+plot(qp_mod)
+```
+
+```{r den_w_aug}
+den_w_qp_aug <- augment(qp_mod, data=den_w) %>%
+  mutate(.stdresid=resid(linp_mod, type="pearson", scaled=T))
+  
+  
+den_w_qp_aug
+
+```
+
+```{r qp final plot}
+ggplot(den_w_qp_aug, aes(x=cc_bio_Mgha, y=LRR))+
+  geom_point()+
+  #geom_point(aes(y=.fixed), color="purple")+
+  geom_line(aes(y=.fitted), color="purple")
+```
+
+## Final - lm
+linear was lowest BIC, so decided to keep it.
+Finding 75% reduction:
+
+```{r}
+1-.25
+log(.5)
+
+exp(-0.6931472)
+```
+For 50% reduction in weed density, need to predict x value where LRR=-0.6931472
+
+```{r cc_bio_50}
+cc_bio_50 <- (-0.6931472 - coef(den_lm)[[1]])/coef(den_lm)[[2]]
+
+cc_bio_50
+
+```
+
+
+
 # Meeting with David on June 3th
 
 Defense 22-25 August
@@ -213,10 +390,12 @@ Submit meta-analysis to Nick by July 15th (4-th to 15th working hard)
 
 - Discussion about weight. His weight is correct, used sample_size instead of reps.
 
-- Do CC suppress weed biomass or density?  (histograms)
+- Do CC suppress weed biomass or density?  (histograms, done)
 - How much? 
 - Why?  
 - What about yield effect?  
 
-
+- Histograms
+- Maps
+- Tree for density
 

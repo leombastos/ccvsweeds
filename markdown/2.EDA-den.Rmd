@@ -33,10 +33,7 @@ den_w
 ```
 
 ```{r checking weight}
-df_w %>%
-  ggplot(aes(x=wgt, y=weight))+
-  geom_point()+
-  geom_abline()
+
 
 ```
 
@@ -172,14 +169,19 @@ den_w %>%
 ## Density x yield quadrants CIT
 
 ```{r den vs yield}
-den_w %>%
+library(ggExtra)
+test <- den_w %>%
+  drop_na(LRRyield) %>%
   filter(LRRyield > -2) %>% #one outlier
   ggplot(aes(x=LRRden, y=LRRyield))+
   geom_point(color="purple")+
-  #geom_smooth()+
   geom_vline(xintercept = 0)+
-  geom_hline(yintercept = 0)+
-  geom_rug()
+  geom_hline(yintercept = 0)
+
+
+ggMarginal(test, 
+             type="density")#,
+           color = "blue")
 
 ```
 
@@ -286,14 +288,89 @@ ggplot()+
           ,
           aes(color=quad),
           size=.7,
-          show.legend = F)#+
+          show.legend = F)+
   facet_wrap(~quad)
 
 ```
 
 # Meeting May 27th
 
-Look into pu_year vs den slope with and w/o earliest data, see magnitude and p-value. Look into cc_bio vs den, perhaps non-sig relationship \< 3.3 and significant when \> 3.3.
+Look into pub_year vs den slope with and w/o earliest data, see magnitude and p-value.
+
+```{r}
+den_q %>%
+  ggplot(aes(x=pub_year,
+             y=LRRden))+
+  geom_point()+
+  geom_smooth(method = "lm")+
+  geom_smooth(data = filter(den_q, pub_year > 1990),
+              method = "lm",
+              color = "yellow")
+
+den_q %>%
+  lm(LRRden ~ pub_year, data=.) %>%
+  broom::tidy()
+  
+```
+
+```{r}
+den_q %>%
+  filter(pub_year > 1990) %>%
+  lm(LRRden ~ pub_year, data=.) %>%
+  broom::tidy()
+```
+
+Look into cc_bio vs den, perhaps non-sig relationship \< 3.3 and significant when \> 3.3.
+
+```{r}
+den_q %>%
+  mutate(cc_bio_cut=ifelse(cc_bio_Mgha < 3.3, "<3.3",">3.3")) %>%
+  ggplot(aes(x=cc_bio_Mgha,
+             y = LRRden,
+             #color=tillage_sys
+             ))+
+  #facet_wrap(~cc_bio_cut)+
+  geom_point()+
+  geom_line(data = df_sim, aes(y=pred))
+  geom_smooth()
+```
+
+```{r}
+den_q %>%
+  filter(cc_bio_Mgha < 3.3) %>%
+  lm(LRRden ~ cc_bio_Mgha, data=.) %>%
+  broom::tidy()
+```
+
+```{r}
+den_q %>%
+  filter(cc_bio_Mgha > 3.3) %>%
+  lm(LRRden ~ cc_bio_Mgha, data=.) %>%
+  broom::tidy()
+```
+
+# Segmented regression
+
+```{r}
+library(segmented)
+
+mod_reg <- lm(LRRden ~ cc_bio_Mgha + I(cc_bio_Mgha^2),
+  data = den_q)
+
+mod_seg <- segmented(mod_reg, npsi=2, psi=3)
+
+mod_seg_sum <- mod_seg %>% summary
+
+mod_seg_sum$psi
+
+summary(den_w$cc_bio_Mgha)
+
+df_sim <- data.frame(cc_bio_Mgha=seq(0,13,.5)) %>%
+  mutate(pred=predict(mod_seg, df_sim))
+
+
+
+```
 
 # To-do
 

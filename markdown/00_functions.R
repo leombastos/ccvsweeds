@@ -499,7 +499,7 @@ RunModelContModsFun <- function(mydata, mymod) {
   d.tmp <- 
     mydata %>% 
     dplyr::select(study, LRR, wgt, mymod) %>%
-    rename_at(5, ~"mod") %>%         # change column name to generalizable 'mymod'
+    rename_at(4, ~"mod") %>%         # change column name to generalizable 'mymod'
     mutate(mod= as.numeric(mod)) %>% 
     filter(!is.na(mod))
   

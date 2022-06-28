@@ -1,0 +1,248 @@
+---
+title: "4.analysis-den"
+output: html_document
+---
+
+# Setup  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Libraries
+library(tidyverse)
+library(janitor)
+library(ggthemes)
+library(readxl)
+library(sf)
+library(USAboundaries)
+library(partykit)
+library(car)
+library(emmeans)
+library(multcomp)
+
+source("../markdown/00_functions.R")
+
+```
+
+```{r theme}
+theme_set(
+  theme_excel()+
+    theme(panel.grid = element_line(size=.1))
+)
+```
+
+```{r bio_w}
+bio_w <- read_csv("../data/bio_w.csv") %>%
+  mutate_if(is.character, as.factor) %>%
+  dplyr::select(-wgt) %>%
+  rename(LRR=LRRbio, wgt=weight)
+
+```
+
+```{r bio NA?}
+bio_w %>%
+  dplyr::select(LRR) %>%
+  summary
+
+# no NAs
+```
+
+```{r sd per study?}
+bio_w %>%
+  group_by(study) %>%
+  tally
+```
+
+# Analysis  
+```{r full model}
+dres <- RunModelNoModsFun(mydata = bio_w)
+
+dres
+```
+
+```{r individual studies}
+bio_studies <- bio_w %>%
+  group_by(study, pub_reference) %>%
+  nest() %>%
+  mutate(dres_study=map(data,
+                        ~RunModelOneStudyFun(
+                          mydata = .x
+                        )))
+
+
+bio_studies %>%
+  unnest(dres_study) %>%
+    dplyr::select(pub_reference, 
+           estimate, std.error, p.value, 
+           cilo, cihi) %>% 
+  write_csv("../output/bio-ss_effect-size-by-study.csv")
+
+```
+
+```{r loo by study}
+dreslo <- dres %>% 
+  mutate(studylo = NA)
+
+bio_stud <- unique(bio_w$study)
+
+for (i in 1:length(bio_stud)) {
+  
+  # trouble
+  #i <- 6
+  lo <- bio_stud[i]
+  d.tmp <- bio_w %>% 
+    filter(study != lo)
+  
+  dres.tmp <- RunModelNoModsFun(mydata = d.tmp) %>% 
+    mutate(studylo = lo)
+
+  dreslo <- bind_rows(dreslo, dres.tmp)
+
+}
+
+dreslo  
+
+# Exporting
+dreslo %>% 
+  mutate_if(is.numeric, round, 2) %>% 
+  dplyr::select(-pavg, -plo, -phi) %>% 
+  write_csv("../output/bio-ss_loo-overall.csv")
+
+# Plotting
+dreslo
+
+```
+the first row on `dreslo` is the full model.
+
+
+
+```{r covariates with cc biomass}
+options(contrasts = c("contr.sum", "contr.poly"))
+
+cc_cov <- bio_w %>%
+  dplyr::select(study, cc_bio_Mgha,
+                lat,
+                cc_type,
+                cc_term.METH2,
+                tillage_sys,
+                #OM_pct too many NAs
+                ) %>%
+  gather(var, val, -study, -cc_bio_Mgha) %>%
+  group_by(var) %>%
+  nest() %>%
+  mutate(data_w=map2(data, var,
+                    ~.x %>%
+                      mutate(var=.y,
+                        val=ifelse(var == "lat", 
+                                   as.numeric(val),
+                        
+                                  as.character(as.factor(val))
+                        ))
+                    )) %>%
+  mutate(mod=map(data_w,
+                 ~lmer(cc_bio_Mgha ~ val + (1|study),
+                       data = .x)) 
+                 ) %>%
+  mutate(anova=map(mod,
+                     ~Anova(.x, type=3) %>%
+                       as.data.frame() %>%
+                     rownames_to_column(var = "source")
+                     ))
+
+
+# Which of the covariates above were significant?
+cc_cov %>%
+  unnest(anova) %>%
+  filter(source == "val") %>%
+  filter(`Pr(>Chisq)`<0.1)
+```
+
+```{r cctype vs cc_biomass}
+letter <- cc_cov %>%
+  filter(var == "cc_type") %>%
+  mutate(means=map2(mod,var,
+                   ~emmeans(.x, ~val
+                            )
+                   )) %>%
+  mutate(cld=map(means,
+                 ~cld(.x,
+                      reversed=T,
+                      adjust="none",
+                      Letters=letters) %>%
+                   as.data.frame() %>%
+                   mutate(letter=trimws(.group))
+                 )) %>%
+  unnest(cld) %>%
+  rename(cc_type=val)
+
+letter
+  
+bio_w %>%
+  ggplot(aes(y=cc_bio_Mgha,
+             x=cc_type))+
+  geom_boxplot()+
+  geom_point(data = letter,
+             aes(y=emmean),
+             color="purple",
+             shape=4,
+             size=2)+
+  geom_label(data = letter, 
+             label.padding = unit(.1, "lines"),
+             aes(y=emmean+1,
+                 label=letter),
+             color="blue")
+
+```
+
+```{r LRR ~ cc_type*cc_biomass}
+
+bio_w %>%
+  ggplot(aes(x=cc_bio_Mgha,
+             y=LRR,
+              color=cc_type))+
+  geom_point()+
+  geom_smooth(method="lm")
+
+```
+
+```{r contrasts}
+themods <- c("cc_type", "cc_term.METH2", 
+             "tillage_sys")
+
+biomc <- RunModelModsContrastFun(mydata = bio_w, 
+                                 mymod = themods[1])
+
+for (i in 2:length(themods)){
+  tmp <- RunModelModsContrastFun(mydata = bio_w, 
+                                 mymod = themods[i])
+  suppressWarnings(
+  biomc <- bind_rows(biomc, tmp)
+  )
+}
+
+```
+```{r continuous modifiers}
+# jsut for reference
+thecontmods <- c("pub_year", 
+                 "lat", "long",
+                 "cc_bio_Mgha")
+
+
+#--biosity
+biomcont <- RunModelContModsFun(mydata = bio_w, 
+                                mymod = thecontmods[1])
+
+for (i in 2:length(thecontmods)){
+  tmp <- RunModelContModsFun(mydata = bio_w, 
+                             mymod = thecontmods[i])
+  biomcont <- bind_rows(biomcont, tmp)
+}
+
+```
+```{r}
+contmodres <- biomcont
+
+contmodres %>% 
+  write_csv("../output/bio-ss_contmods.csv")
+```
+
+
