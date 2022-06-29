@@ -11,10 +11,19 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ```{r packages}
 library(tidyverse)
-library(usmap) # pre-loaded maps package
+library(USAboundaries) # pre-loaded maps package
 library(ggpubr) # has nice themes
 library(wesanderson) # colors
 library(patchwork) #--multiple plots
+library(ggthemes)
+library(emmeans)
+library(multcomp)
+library(lme4)
+library(sf)
+library(partykit)
+library(broom)
+library(ggExtra)
+
 ```
 
 ```{r}
@@ -34,14 +43,14 @@ den_w <- read_csv("../data/den_w.csv") %>%
          resp="den") %>%
   mutate(across(where(is.character), factor)) %>%
   dplyr::select(-LRRden) #%>% #n=139
-drop_na(LRRyield) #n=101
+#drop_na(LRRyield) #n=101
 
 # bio_w
 bio_w <- read_csv("../data/bio_w.csv") %>%
   mutate(LRR=LRRbio,
          resp="bio") %>%
   dplyr::select(-LRRbio) #%>% #n=142
-drop_na(LRRyield) #n=83
+#drop_na(LRRyield) #n=83
 
 # comb_w
 comb_w <- den_w %>%
@@ -228,11 +237,20 @@ comb_sf <- comb_w %>%
   drop_na(long, lat) %>%
   st_as_sf(coords = c("long", "lat")) %>%
   st_set_crs(value = 4326) %>%
-  filter(resp == "den") %>%
+  #filter(resp == "den") %>%
   mutate(ref_loc=paste(pub_reference,"_",loc_citystate),
          ref_loc=factor(ref_loc))
 
 comb_sf
+
+
+comb_w %>%
+  filter(is.na(long) | is.na(lat)) %>%
+  distinct(study, pub_reference, loc_state)
+
+comb_w %>%
+  filter(loc_state == "FL") %>%
+  dplyr::select(long, lat, LRR, LRRyield, resp)
 ```
 
 ```{r em_den_pr}
@@ -287,8 +305,7 @@ ggplot()+
   geom_label_repel(
     data = comb_means,
     aes(label = study, 
-        geometry = geometry,
-        color= LRRb),
+        geometry = geometry),
     stat = "sf_coordinates",
     min.segment.length = 0,
     max.overlaps = 20,
@@ -309,7 +326,7 @@ ggplot()+
   )
 
 ggsave("../output/fig2.tiff",
-       height = 4,
+       height = 7,
        width = 7)
 ```
 
@@ -317,9 +334,12 @@ ggsave("../output/fig2.tiff",
 comb_w %>%
   filter(loc_state == "FL")
 ```
+# Remove study labels, change point fill according to number of studies per location.
+
 # Fig 3 - CIT den  
 ```{r den_cit_w }
 den_cit_w <- den_w %>%
+  filter(pub_year > 2001) %>%
   dplyr::select(
     pub_reference,
     pub_year, 
@@ -348,9 +368,34 @@ den_cit_w <- den_w %>%
 
 ```{r den_cit_mod}
 den_cit_mod <- ctree(LRR ~ .-pub_reference,
-                     data = den_cit_w)
+                     data = den_cit_w,control = partykit::ctree_control(
+                       maxsurrogate = 3,
+                       saveinfo=T))
 
 plot(den_cit_mod)
+```
+```{r}
+surrogateinfo <- function(model, nodeids) {
+  survarid <- 1:3
+  df <- crossing(nodeids, survarid) %>%
+    mutate(survarname=NA, level1=NA, level2=NA) %>%
+    mutate(row=1:nrow(.))
+  for (i in 1:nrow(df)) {
+    surinfolist <- nodeapply(model, ids = df$nodeids[i], function(n) n$surrogates[[df$survarid[i]]])
+    surinfo <- character_split(surinfolist[[1]], model.frame(model))
+    survarname <- surinfo$name
+    level1 <- surinfo$levels[[1]]
+    level2 <- surinfo$levels[[2]]
+    df$survarname[i] <- survarname
+    df$level1[i] <- level1
+    df$level2[i] <- level2
+  }
+  return(df)
+}
+```
+
+```{r}
+surrogateinfo(den_cit_mod, c(2,4,5))
 ```
 
 ```{r den_cit_w2}
@@ -454,9 +499,9 @@ ggsave(plot = den_cit_plot, bg = "white",
 # Fig 4 - Regression  
 ```{r den_lm}
 den_lm <- lm(LRR ~ cc_bio_Mgha, 
-     data = den_w %>%
-       drop_na(LRR, cc_bio_Mgha)
-     )
+             data = den_w %>%
+               drop_na(LRR, cc_bio_Mgha)
+)
 
 den_lm 
 ```
@@ -494,7 +539,7 @@ ggplot(den_lm_aug,
   geom_line(aes(y=.fitted), color="black")+
   geom_segment(x = cc_bio_50, xend = cc_bio_50,
                y = -0.6931472, yend = -3, color="white", linetype=3)+
-    geom_segment(x = cc_bio_50, xend = -1,
+  geom_segment(x = cc_bio_50, xend = -1,
                y = -0.6931472, yend = -0.6931472,
                color="white", linetype=3)+
   geom_point(x = cc_bio_50, y = -0.6931472, 
@@ -508,7 +553,7 @@ ggplot(den_lm_aug,
   theme(legend.position = c(.85,.8),
         legend.background = element_rect(fill="gray85", size=.1),
         legend.key = element_rect(fill = "gray85")
-        )
+  )
 
 ggsave(bg = "white",
        filename = "../output/fig4.tiff", 
@@ -553,10 +598,10 @@ quad_plot <- ggplot(comb_w2, aes(x=LRR, y=LRRyield,
                                  fill = resp))+
   geom_vline(xintercept = 0)+
   geom_hline(yintercept = 0)+
-    geom_point(alpha = .6, 
+  geom_point(alpha = .6, 
              size = 2)+
-    scale_color_manual(values = c("#D55E00","#0072B2"))+
-    scale_fill_manual(values = c("#D55E00","#0072B2"))+
+  scale_color_manual(values = c("#D55E00","#0072B2"))+
+  scale_fill_manual(values = c("#D55E00","#0072B2"))+
   labs(y="Crop yield log response ratio",
        x="Weed log response ratio")+
   geom_text(data = quad_prop, aes(x=x, y=y, label=prop_lab),
@@ -566,7 +611,7 @@ quad_plot <- ggplot(comb_w2, aes(x=LRR, y=LRRyield,
         legend.background = element_rect(fill="gray85", size=.1),
         legend.key = element_rect(fill = "gray85", size=2),
         legend.margin = margin(0.2,0.2,0.2,0.2)
-        )
+  )
 
 ggMarginal(quad_plot, groupColour = T,  groupFill = T)
 
@@ -576,6 +621,11 @@ ggsave(bg = "white",
        width = 6, 
        height = 4)
 ```
+# edits
+removing n =
+adding % of biomass and density, color-coded  
+move legend upwards, decrease size
+
 
 # Summary table  
 ```{r comb_w3 }
@@ -596,7 +646,7 @@ comb_w3 <- comb_w %>%
                 LRRyield,
                 LRR,
                 resp
-                ) 
+  ) 
 ```
 
 ```{r comb_w3_n}
@@ -615,8 +665,8 @@ comb_w3_n <- comb_w3 %>%
                              max = round(max(value),1),
                              sd = round(sd(value),1),
                              cv = sd/mean
-                             )
-                 )) %>%
+                   )
+  )) %>%
   unnest(sum) %>%
   dplyr::select(-data) 
 
@@ -639,7 +689,7 @@ comb_w3_c <- comb_w3 %>%
                    group_by(value) %>%
                    tally() %>%
                    mutate(N=sum(n))
-                 )) %>%
+  )) %>%
   unnest(sum) %>%
   dplyr::select(-data)
 
@@ -656,7 +706,7 @@ comb_w3_c %>%
 - Map (Leo) DONE
 - CIT for density (Leo, run anova, add letters, make a nice CIT) (DONE)
 - regression LRRdensity vs. cc_biomass (try LP, QP, poisson, see what happens) (DONE)
-- quadrants (Leo)
+- quadrants (Leo) (DONE)
 - Table with summary for all descriptors (DONE)
 
 
@@ -666,3 +716,18 @@ comb_w3_c %>%
 - Bias
 
 Sofia and Ceren (Jeren)
+
+
+
+# Meeting June 29th 
+```{r}
+den_w %>%
+  drop_na(cc_bio_Mgha) %>%
+  mutate(cit_th=ifelse(cc_bio_Mgha>3.3,">3.3","<3.3")) %>%
+  ggplot(aes(x=pub_year, y=LRR))+
+  geom_point(aes(color=cit_th), alpha=.6, size=2)+
+  #geom_smooth(method="lm")+
+  geom_smooth(aes(color=cit_th), method="lm")
+  facet_wrap(~cc_term.METH2)
+```
+
