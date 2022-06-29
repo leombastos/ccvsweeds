@@ -578,25 +578,90 @@ ggsave(bg = "white",
 ```
 
 # Summary table  
-```{r table }
+```{r comb_w3 }
+comb_w3 <- comb_w %>%
+  dplyr::select(pub_year,
+                study_duration,
+                soil_type,
+                pH,
+                cc_spec,
+                cc_type,
+                tillage_sys,
+                cc_term.METH,
+                add_herb,
+                cc_bio_Mgha,
+                crop,
+                weed_type=`weed type`,
+                weed.sing.com,
+                LRRyield,
+                LRR,
+                resp
+                ) 
+```
+
+```{r comb_w3_n}
+comb_w3_n <- comb_w3 %>%
+  dplyr::select_if(is.numeric) %>%
+  pivot_longer(everything()) %>%
+  group_by(name) %>%
+  nest() %>%
+  mutate(sum=map(data,
+                 ~.x %>%
+                   drop_na() %>%
+                   summarise(N = length(value),
+                             min = round(min(value),1),
+                             mean = round(mean(value),2),
+                             median = round(median(value),1),
+                             max = round(max(value),1),
+                             sd = round(sd(value),1),
+                             cv = sd/mean
+                             )
+                 )) %>%
+  unnest(sum) %>%
+  dplyr::select(-data) 
+
+comb_w3_n
+
+comb_w3_n %>%
+  write_csv("../output/sumtable_num.csv")
 
 ```
 
-Adding CIT here
+```{r comb_w3_c}
+comb_w3_c <- comb_w3 %>%
+  dplyr::select_if(is.factor) %>%
+  pivot_longer(everything()) %>%
+  group_by(name) %>%
+  nest() %>%
+  mutate(sum=map(data,
+                 ~.x %>%
+                   drop_na(value) %>%
+                   group_by(value) %>%
+                   tally() %>%
+                   mutate(N=sum(n))
+                 )) %>%
+  unnest(sum) %>%
+  dplyr::select(-data)
 
-Also, thinking of separating WW and 
+comb_w3_c
+
+comb_w3_c %>%
+  write_csv("../output/sumtable_cat.csv")
+
+```
+
 
 # Figures  
-- Histograms for overall effects (Leo) DONE
+- Histograms for overall effects (Leo) (DONE)
 - Map (Leo) DONE
-- CIT for density (Leo, run anova, add letters, make a nice CIT) DONE
-- regression LRRdensity vs. cc_biomass (try LP, QP, poisson, see what happens) DONE
+- CIT for density (Leo, run anova, add letters, make a nice CIT) (DONE)
+- regression LRRdensity vs. cc_biomass (try LP, QP, poisson, see what happens) (DONE)
 - quadrants (Leo)
-- Table with summary for all descriptors
+- Table with summary for all descriptors (DONE)
 
 
 - Write about methods  
-- Remake other 2 figures to keep format consistent
+- Remake other 2 figures to keep format consistent (DONE)
 - Sensitivity
 - Bias
 
