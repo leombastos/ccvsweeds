@@ -1,52 +1,50 @@
 name,value,n,N
-soil_type,clay,12,257
-soil_type,fine sand,4,257
-soil_type,loamy sand,69,257
-soil_type,sandy loam,81,257
-soil_type,silt loam,69,257
-soil_type,silty clay loam,4,257
-soil_type,silty loam,18,257
-cc_spec,Austrian winter pea,3,281
-cc_spec,Cahaba vetch,2,281
-cc_spec,Cereal rye,132,281
-cc_spec,Cereal Rye,1,281
-cc_spec,Cereal rye  + crimson clover,20,281
-cc_spec,Cereal rye + austrian winter pea,6,281
-cc_spec,Cereal rye + cahaba vetch,2,281
-cc_spec,Cereal rye + hairy vetch,5,281
-cc_spec,Cereal rye + narrow-leaf lupine,2,281
-cc_spec,Crimson clover,37,281
-cc_spec,Hairy vetch,34,281
-cc_spec,Italian ryegrass,3,281
-cc_spec,Narrow-leaf lupine,2,281
-cc_spec,Oat,4,281
-cc_spec,Rapeseed,1,281
-cc_spec,Subteranean clover,15,281
-cc_spec,Triticale,1,281
-cc_spec,Wheat,3,281
-cc_spec,Wild radish,2,281
-cc_spec,Winter wheat,6,281
-cc_type,brassica,3,281
-cc_type,grass,150,281
-cc_type,legume,93,281
-cc_type,mix,35,281
-tillage_sys,no-till,175,260
-tillage_sys,strip till,35,260
-tillage_sys,tillage,50,260
-cc_term.METH,herbicide,156,272
-cc_term.METH,herbicide + mow,12,272
-cc_term.METH,herbicide + roll,79,272
-cc_term.METH,mow,8,272
-cc_term.METH,roll,17,272
-add_herb,N,80,278
-add_herb,Y,198,278
-crop,corn,85,281
-crop,cotton,136,281
-crop,peanut,5,281
-crop,soybean,55,281
-weed_type,summer annual,264,281
-weed_type,"summer annual, summer perennial",17,281
-weed.sing.com,community,162,281
-weed.sing.com,single,119,281
-resp,bio,142,281
-resp,den,139,281
+soil_type,clay,12,217
+soil_type,fine sand,4,217
+soil_type,loamy sand,51,217
+soil_type,sandy loam,79,217
+soil_type,silt loam,58,217
+soil_type,silty clay loam,4,217
+soil_type,silty loam,9,217
+cc_spec,Austrian winter pea,2,241
+cc_spec,Cahaba vetch,1,241
+cc_spec,Cereal rye,111,241
+cc_spec,Cereal Rye,1,241
+cc_spec,Cereal rye  + crimson clover,19,241
+cc_spec,Cereal rye + austrian winter pea,5,241
+cc_spec,Cereal rye + cahaba vetch,1,241
+cc_spec,Cereal rye + hairy vetch,5,241
+cc_spec,Cereal rye + narrow-leaf lupine,1,241
+cc_spec,Crimson clover,35,241
+cc_spec,Hairy vetch,28,241
+cc_spec,Italian ryegrass,3,241
+cc_spec,Narrow-leaf lupine,1,241
+cc_spec,Oat,3,241
+cc_spec,Rapeseed,1,241
+cc_spec,Subteranean clover,14,241
+cc_spec,Triticale,1,241
+cc_spec,Wheat,3,241
+cc_spec,Wild radish,1,241
+cc_spec,Winter wheat,5,241
+cc_type,brassica,2,241
+cc_type,grass,127,241
+cc_type,legume,81,241
+cc_type,mix,31,241
+tillage_sys,no-till,146,220
+tillage_sys,strip till,24,220
+tillage_sys,tillage,50,220
+cc_term.METH,herbicide,146,233
+cc_term.METH,herbicide + mow,12,233
+cc_term.METH,herbicide + roll,52,233
+cc_term.METH,mow,6,233
+cc_term.METH,roll,17,233
+add_herb,N,68,238
+add_herb,Y,170,238
+crop,corn,78,241
+crop,cotton,109,241
+crop,peanut,5,241
+crop,soybean,49,241
+weed_type,summer annual,224,241
+weed_type,"summer annual, summer perennial",17,241
+weed.sing.com,community,149,241
+weed.sing.com,single,92,241

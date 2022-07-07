@@ -23,6 +23,7 @@ library(sf)
 library(partykit)
 library(broom)
 library(ggExtra)
+library(ggpp)
 
 ```
 
@@ -104,10 +105,10 @@ den_hist <- ggplot(den_w, aes(x=LRR))+
   scale_y_continuous(breaks = seq(0,0.6,.2),
                      limits = c(0,.6)
   )+
-  geom_text(x=-3.5, y=.55, 
+  geom_text_npc(npcx=0.1, npcy=.9, 
             label = paste0("mean: -",nobs_den$mean_pct_lab),
             hjust = 0, color="blue")+
-  geom_text(x=-3.5, y=.5, label = paste0("n: ", nobs_den$label),
+  geom_text_npc(npcx=0.1, npcy=.85, label = paste0("n: ", nobs_den$label),
             hjust = 0, color="blue")+
   theme(axis.title.x = element_blank())
 
@@ -147,18 +148,15 @@ bio_hist <- ggplot(bio_w, aes(x=LRR))+
        #x= "Weed biomass\nlog response ratio"
        title="Weed biomass"
   )+
-  scale_y_continuous(breaks = seq(0,0.6,.2),
-                     limits = c(0,.6)
-  )+
+  #scale_y_continuous(breaks = seq(0,0.6,.2),
+  #                   limits = c(0,.6))+
   scale_x_continuous(breaks = c(-2,0,2))+
-  geom_text(x=-4.5, y=.55, 
+    geom_text_npc(npcx=0.1, npcy=.9, 
             label = paste0("mean: -",nobs_bio$mean_pct_lab),
             hjust = 0, color="blue")+
-  geom_text(x=-4.5, y=.5, label = paste0("n: ", nobs_bio$label),
+  geom_text_npc(npcx=0.1, npcy=.85, label = paste0("n: ", nobs_bio$label),
             hjust = 0, color="blue")+
   theme(axis.title.y = element_blank(),
-        #axis.ticks.y = element_blank(),
-        axis.text.y = element_blank(),
         axis.title.x = element_blank()
   )
 
@@ -169,12 +167,12 @@ bio_hist
 ```{r yield_hist }
 options(contrasts = c("contr.sum", "contr.poly"))
 
-em_yield <- lmer(LRRyield ~ 1 + (1|pub_reference), data = den_w) %>%
+em_yield <- lmer(LRRyield ~ 1 + (1|pub_reference), data = comb_w3) %>%
   emmeans(~1) %>%
   as.data.frame() %>%
-  rename(LRR=emmean)
+  rename(LRRyield=emmean)
 
-nobs_yield <- den_w %>%
+nobs_yield <- comb_w3 %>%
   mutate(nobs=nrow(.)) %>%
   mutate(nstudy=length(unique(pub_reference))) %>%
   dplyr::select(nobs, nstudy) %>%
@@ -182,10 +180,10 @@ nobs_yield <- den_w %>%
   mutate(label = paste0(nobs, " (",nstudy,")")) %>%
   mutate(LRR=em_yield$LRR) %>%
   mutate(eRR=exp(LRR)) %>%
-  mutate(mean_pct=round((1-eRR)*100,0)) %>%
+  mutate(mean_pct=round((eRR-1)*100,0)) %>%
   mutate(mean_pct_lab=paste0(mean_pct,"%"))
 
-yield_hist <- ggplot(den_w, aes(x=LRR))+
+yield_hist <- ggplot(comb_w3, aes(x=LRRyield))+
   geom_density(fill="grey95")+
   geom_rect(data = em_yield, aes(xmin = lower.CL, 
                                  xmax = upper.CL, 
@@ -199,19 +197,17 @@ yield_hist <- ggplot(den_w, aes(x=LRR))+
        #x= "Yield\nlog response ratio"
        title = "Crop yield"
   )+
-  scale_y_continuous(breaks = seq(0,0.6,.2),
-                     limits = c(0,.6)
-  )+
+  #scale_y_continuous(breaks = seq(0,0.6,.2),
+  #                   limits = c(0,.6)
+  #)+
   scale_x_continuous(breaks = c(-2,0,2))+
-  geom_text(x=-3.5, y=.55, 
-            label = paste0("mean: -",nobs_yield$mean_pct_lab),
+      geom_text_npc(npcx=0.1, npcy=.9, 
+            label = paste0("mean: ",nobs_yield$mean_pct_lab),
             hjust = 0, color="blue")+
-  geom_text(x=-3.5, y=.5, label = paste0("n: ", nobs_yield$label),
+  geom_text_npc(npcx=0.1, npcy=.85, label = paste0("n: ", nobs_yield$label),
             hjust = 0, color="blue")+
   theme(axis.title.y = element_blank(),
-        #axis.ticks.y = element_blank(),
-        axis.text.y = element_blank(),
-        axis.title.x = element_blank()
+      axis.title.x = element_blank()
   )
 
 yield_hist
@@ -252,36 +248,6 @@ comb_w %>%
   filter(loc_state == "FL") %>%
   dplyr::select(long, lat, LRR, LRRyield, resp)
 ```
-
-```{r em_den_pr}
-options(contrasts = c("contr.sum", "contr.poly"))
-
-# pr = pub_reference
-em_den_pr <- lmer(LRR ~ ref_loc + (1|pub_reference), 
-                  data = comb_sf) %>%
-  emmeans(~ref_loc) %>%
-  as.data.frame() %>%
-  rename(LRR=emmean)
-
-em_den_pr
-```
-```{r}
-library(sf)
-comb_means <- em_den_pr %>%
-  left_join(comb_sf %>%
-              distinct(ref_loc, loc_citystate, study,
-                       geometry)) %>%
-  mutate(LRRb=ifelse(LRR<0,"<0",">0")) %>%
-  st_as_sf()
-
-comb_means
-
-comb_means %>%
-  group_by(ref_loc, study, LRRb) %>%
-  tally %>%
-  spread(LRRb, n)
-```
-
 ```{r states}
 states <- us_states() %>%
   dplyr::select(state_name, state_abbr) %>%
@@ -294,52 +260,63 @@ states <- us_states() %>%
 
 states
 ```
+```{r nstudies_loc}
+ncomp_loc <- comb_sf %>%
+  dplyr::select(geometry) %>%
+  distinct() %>%
+  mutate(location=factor(1:nrow(.))) %>%
+  st_join(comb_sf, join = st_equals, left=T) %>%
+  group_by(location) %>%
+  tally() %>%
+  ungroup() %>%
+  mutate(nf=factor(n)) %>%
+  group_by(nf, n) %>%
+  tally() %>%
+  mutate(class=case_when(
+    n >= 1 & n <= 5 ~ "1-5",
+    n >= 6 & n <= 10 ~ "6-10",
+    n >=12 & n <= 20 ~ "12-20",
+    n >= 30 & n <= 43 ~ "30-43"
+  ),
+  class=factor(class,
+               levels=c("1-5",
+                        "6-10",
+                        "12-20",
+                        "30-43")))
+
+ncomp_loc
+```
+
 
 ```{r fig2}
-library(ggrepel)
-
+library()
 set.seed(6)
 ggplot()+
   geom_sf(data=states, fill="gray90")+
-  
-  geom_label_repel(
-    data = comb_means,
-    aes(label = study, 
-        geometry = geometry),
-    stat = "sf_coordinates",
-    min.segment.length = 0,
-    max.overlaps = 20,
-    label.padding = unit(.1, "lines"),
-    fill="white",
-    size=2.5
-  )+
-  geom_sf(data=comb_means,
-          size=4,
+  geom_sf(data=ncomp_loc,
           alpha=.7,
-          fill="blue",
-          shape=25)+
-  labs(color="Weed\ndensity\nLRR")+
-  scale_color_manual(values = c("#E69F00", "#009E73"))+
-  theme(legend.position = c(.9,.3),
+          shape=25,
+          size=4,
+          aes(fill=class))+
+  scale_fill_viridis_d()+
+  labs(fill="Num. of\ncomparisons")+
+  guides(fill = guide_legend(override.aes = list(size = .4)))+
+  theme(legend.position = c(.13,.25),
         axis.title = element_blank(),
         legend.background = element_rect(size=.1)
   )
 
 ggsave("../output/fig2.tiff",
-       height = 7,
-       width = 7)
+       height = 4,
+       width = 6)
 ```
 
-```{r}
-comb_w %>%
-  filter(loc_state == "FL")
-```
-# Remove study labels, change point fill according to number of studies per location.
+Color of points changed to be number of comparisons per location (instead of study).
 
 # Fig 3 - CIT den  
 ```{r den_cit_w }
 den_cit_w <- den_w %>%
-  filter(pub_year > 2001) %>%
+  #filter(pub_year > 2001) %>%
   dplyr::select(
     pub_reference,
     pub_year, 
@@ -381,8 +358,13 @@ surrogateinfo <- function(model, nodeids) {
     mutate(survarname=NA, level1=NA, level2=NA) %>%
     mutate(row=1:nrow(.))
   for (i in 1:nrow(df)) {
-    surinfolist <- nodeapply(model, ids = df$nodeids[i], function(n) n$surrogates[[df$survarid[i]]])
-    surinfo <- character_split(surinfolist[[1]], model.frame(model))
+    surinfolist <- nodeapply(model, 
+                             ids = df$nodeids[i], 
+                             function(n) n$surrogates[[df$survarid[i]]])
+    
+    surinfo <- character_split(surinfolist[[1]], 
+                               model.frame(model))
+    
     survarname <- surinfo$name
     level1 <- surinfo$levels[[1]]
     level2 <- surinfo$levels[[2]]
@@ -395,7 +377,10 @@ surrogateinfo <- function(model, nodeids) {
 ```
 
 ```{r}
-surrogateinfo(den_cit_mod, c(2,4,5))
+surrogateinfo(den_cit_mod, c(1)) %>%
+  dplyr::select(survarname, level1, level2) %>%
+  write_csv("../output/surrogates.csv")
+
 ```
 
 ```{r den_cit_w2}
@@ -583,7 +568,7 @@ quad_prop <- comb_w2 %>%
   group_by(quad, N) %>%
   summarise(n=length(quad)) %>%
   mutate(prop=round((n/N)*100,0)) %>%
-  mutate(prop_lab=paste0(quad,"\nn = ",prop,"%")) %>%
+  mutate(prop_lab=paste0(quad,"\n",prop,"%")) %>%
   ungroup() %>%
   mutate(x=c(1, 1, -2, -2),
          y=c(-2,2,-2,2))
@@ -591,8 +576,32 @@ quad_prop <- comb_w2 %>%
 quad_prop
 ```
 
-```{r quad_plot}
+```{r quad_resp_prop}
+quad_resp_prop <- comb_w2 %>%
+  mutate(quad=case_when(
+    LRR <= 0 & LRRyield > 0 ~ "W-W",
+    LRR <= 0 & LRRyield <= 0 ~ "W-L",
+    LRR > 0 & LRRyield > 0 ~ "L-W",
+    LRR > 0 & LRRyield <= 0 ~ "L-L"
+  )) %>%
+  mutate(quad=factor(quad)) %>%
+  group_by(resp) %>%
+  mutate(N=length(LRR)) %>%
+  group_by(quad, resp, N) %>%
+  summarise(n=length(quad)) %>%
+  mutate(prop=round((n/N)*100,0)) %>%
+  mutate(prop_lab=paste0(prop,"%")) %>%
+  ungroup() %>%
+  mutate(x=c(1,1, 1,1, -2,-2, -2,-2),
+         y=c(-2,-2,2,2,-2,-2,2,2)) %>%
+  dplyr::select(quad, prop_lab, x, y, resp) %>%
+  spread(resp, prop_lab) %>%
+  mutate(lab=paste0("<i style='color:#D55E00;'>",biomass,"</i>, <i style='color:#0072B2;'>",density,"</i>"))
 
+quad_resp_prop
+```
+
+```{r quad_plot}
 quad_plot <- ggplot(comb_w2, aes(x=LRR, y=LRRyield, 
                                  color=resp,
                                  fill = resp))+
@@ -606,31 +615,42 @@ quad_plot <- ggplot(comb_w2, aes(x=LRR, y=LRRyield,
        x="Weed log response ratio")+
   geom_text(data = quad_prop, aes(x=x, y=y, label=prop_lab),
             inherit.aes = F)+
-  theme(legend.position = c(.9,.8),
+  ggtext::geom_richtext(data = quad_resp_prop, 
+                        aes(x=x, y=y, label=lab),
+                        inherit.aes = F,
+                        fill=NA,
+                        label.color=NA,
+                        size=3,
+                        nudge_y = -.8)+
+  
+  theme(legend.position = c(.91,.905),
         legend.title = element_blank(),
         legend.background = element_rect(fill="gray85", size=.1),
-        legend.key = element_rect(fill = "gray85", size=2),
-        legend.margin = margin(0.2,0.2,0.2,0.2)
+        legend.key = element_rect(fill = "gray85", size=1),
+        legend.margin = margin(0.2,0.2,0.2,0.2),
+        legend.spacing.y = unit(.001, "cm")
   )
 
 ggMarginal(quad_plot, groupColour = T,  groupFill = T)
-
 
 ggsave(bg = "white",
        filename = "../output/fig5.tiff", 
        width = 6, 
        height = 4)
 ```
-# edits
-removing n =
-adding % of biomass and density, color-coded  
-move legend upwards, decrease size
+
 
 
 # Summary table  
 ```{r comb_w3 }
-comb_w3 <- comb_w %>%
-  dplyr::select(pub_year,
+comb_w3 <- den_w %>%
+  rename(LRRden=LRR) %>%
+  dplyr::select(-resp) %>%
+  full_join(bio_w %>%
+              rename(LRRbio=LRR) %>%
+  dplyr::select(-resp)) %>% #241
+  dplyr::select(pub_reference,
+    pub_year,
                 study_duration,
                 soil_type,
                 pH,
@@ -644,9 +664,12 @@ comb_w3 <- comb_w %>%
                 weed_type=`weed type`,
                 weed.sing.com,
                 LRRyield,
-                LRR,
-                resp
-  ) 
+                LRRden, LRRbio
+  ) %>%
+    mutate(across(where(is.character), factor))
+
+
+comb_w3
 ```
 
 ```{r comb_w3_n}
@@ -728,6 +751,6 @@ den_w %>%
   geom_point(aes(color=cit_th), alpha=.6, size=2)+
   #geom_smooth(method="lm")+
   geom_smooth(aes(color=cit_th), method="lm")
-  facet_wrap(~cc_term.METH2)
+facet_wrap(~cc_term.METH2)
 ```
 
