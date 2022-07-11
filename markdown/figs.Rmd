@@ -67,6 +67,36 @@ comb_w <- den_w %>%
 comb_w
 ```
 
+```{r comb_w3 }
+comb_w3 <- den_w %>% #139
+  rename(LRRden=LRR) %>%
+  dplyr::select(-resp) %>%
+  full_join(bio_w %>% #142
+              rename(LRRbio=LRR) %>%
+  dplyr::select(-resp)) %>% #241
+  dplyr::select(pub_reference,
+    pub_year,
+                study_duration,
+                soil_type,
+                pH,
+                cc_spec,
+                cc_type,
+                tillage_sys,
+                cc_term.METH,
+                add_herb,
+                cc_bio_Mgha,
+                crop,
+                weed_type=`weed type`,
+                weed.sing.com,
+                LRRyield,
+                LRRden, LRRbio
+  ) %>%
+    mutate(across(where(is.character), factor))
+
+
+
+```
+
 # Fig 1  - histograms  
 To get the % reduction you back transform the natural log transformed value (e.g. LRRwden = -0.533 -> e^(-0.533) = 0.58 -> % reduction = 1- 0.58 = -42%). 
 
@@ -75,6 +105,7 @@ options(contrasts = c("contr.sum", "contr.poly"))
 
 em_den <- lmer(LRR ~ 1 + (1|pub_reference), data = den_w) %>%
   emmeans(~1) %>%
+  confint(adjust = "none", level = 0.9) %>%
   as.data.frame() %>%
   rename(LRR=emmean)
 
@@ -120,6 +151,7 @@ options(contrasts = c("contr.sum", "contr.poly"))
 
 em_bio <- lmer(LRR ~ 1 + (1|pub_reference), data = bio_w) %>%
   emmeans(~1) %>%
+    confint(adjust = "none", level = 0.9) %>%
   as.data.frame() %>%
   rename(LRR=emmean)
 
@@ -167,12 +199,14 @@ bio_hist
 ```{r yield_hist }
 options(contrasts = c("contr.sum", "contr.poly"))
 
-em_yield <- lmer(LRRyield ~ 1 + (1|pub_reference), data = comb_w3) %>%
+em_yield <- lmer(LRRyield ~ 1 + (1|pub_reference), data = comb_w3 %>% drop_na(LRRyield)) %>%
   emmeans(~1) %>%
+  confint(adjust = "none", level = 0.9) %>%
   as.data.frame() %>%
   rename(LRRyield=emmean)
 
 nobs_yield <- comb_w3 %>%
+  drop_na(LRRyield) %>%
   mutate(nobs=nrow(.)) %>%
   mutate(nstudy=length(unique(pub_reference))) %>%
   dplyr::select(nobs, nstudy) %>%
@@ -183,7 +217,7 @@ nobs_yield <- comb_w3 %>%
   mutate(mean_pct=round((eRR-1)*100,0)) %>%
   mutate(mean_pct_lab=paste0(mean_pct,"%"))
 
-yield_hist <- ggplot(comb_w3, aes(x=LRRyield))+
+yield_hist <- ggplot(comb_w3 %>% drop_na(LRRyield), aes(x=LRRyield))+
   geom_density(fill="grey95")+
   geom_rect(data = em_yield, aes(xmin = lower.CL, 
                                  xmax = upper.CL, 
@@ -260,6 +294,7 @@ states <- us_states() %>%
 
 states
 ```
+
 ```{r nstudies_loc}
 ncomp_loc <- comb_sf %>%
   dplyr::select(geometry) %>%
@@ -351,6 +386,7 @@ den_cit_mod <- ctree(LRR ~ .-pub_reference,
 
 plot(den_cit_mod)
 ```
+
 ```{r}
 surrogateinfo <- function(model, nodeids) {
   survarid <- 1:3
@@ -397,10 +433,11 @@ den_cit_lm <- lmer(LRR ~ pred + (1|pub_reference),
 
 car::Anova(den_cit_lm, type=3)
 ```
+
 ```{r den_cit_means}
 den_cit_means <- den_cit_lm %>%
   emmeans(~pred) %>%
-  cld(reversed=T, adjust="none", Letter=letters) %>%
+  cld(reversed=T, adjust="none", Letter=letters, alpha=.1) %>%
   as.data.frame() %>%
   mutate(id=as.numeric(as.character(pred))) %>%
   mutate(letter=trimws(.group))
@@ -555,6 +592,7 @@ comb_w2 <- comb_w %>%
 comb_w2
 
 ```
+
 ```{r quad_prop}
 quad_prop <- comb_w2 %>%
   mutate(N=length(LRR)) %>%
@@ -623,7 +661,7 @@ quad_plot <- ggplot(comb_w2, aes(x=LRR, y=LRRyield,
                         size=3,
                         nudge_y = -.8)+
   
-  theme(legend.position = c(.91,.905),
+  theme(legend.position = c(.85,.905),
         legend.title = element_blank(),
         legend.background = element_rect(fill="gray85", size=.1),
         legend.key = element_rect(fill = "gray85", size=1),
@@ -631,47 +669,153 @@ quad_plot <- ggplot(comb_w2, aes(x=LRR, y=LRRyield,
         legend.spacing.y = unit(.001, "cm")
   )
 
-ggMarginal(quad_plot, groupColour = T,  groupFill = T)
+quad_plot_marg <- ggMarginal(quad_plot, groupColour = T,  groupFill = T)
 
+quad_plot_marg
 ggsave(bg = "white",
        filename = "../output/fig5.tiff", 
        width = 6, 
        height = 4)
 ```
+# Fig 1a  
+Alternative fig. 1 with 4 instead of 3 panels
+```{r den_hist_a}
+den_hist_a <- ggplot(den_w, aes(x=LRR))+
+  geom_density(fill="grey95")+
+  geom_rect(data = em_den, aes(xmin = lower.CL, 
+                               xmax = upper.CL, 
+                               ymin=0, ymax=Inf),
+            fill="purple",
+            alpha=.6,
+            inherit.aes = T)+
+  geom_vline(xintercept = 0, color="forestgreen")+
+  geom_vline(xintercept = em_den$LRR, linetype=2, color="blue")+
+  labs(y="Kernel density")+
+  scale_x_continuous(breaks = c(-2,0,2),
+                     limits = c(-4, 4))+
+  scale_y_continuous(breaks = seq(0,0.6,.2),
+                     limits = c(0,.6)
+  )+
+  geom_text_npc(npcx=0.65, npcy=.9, 
+            label = paste0("mean: -",nobs_den$mean_pct_lab),
+            hjust = 0, color="blue")+
+  geom_text_npc(npcx=0.65, npcy=.7, label = paste0("n: ", nobs_den$label),
+            hjust = 0, color="blue")+
+  
+    geom_text_npc(npcx=0.1, npcy=.9, 
+                  label = "Weed\ndensity",
+            hjust = 0, color="black")+
+
+  theme(axis.title = element_blank())
+
+den_hist_a
+```
+
+```{r bio_hist_a}
+bio_hist_a <- ggplot(bio_w, aes(x=LRR))+
+  geom_density(fill="grey95")+
+  geom_rect(data = em_bio, aes(xmin = lower.CL, 
+                               xmax = upper.CL, 
+                               ymin=0, ymax=Inf),
+            fill="purple",
+            alpha=.6,
+            inherit.aes = T)+
+  geom_vline(xintercept = 0, color="forestgreen")+
+  geom_vline(xintercept = em_bio$LRR, linetype=2, color="blue")+
+  labs(y="Kernel density",
+       #x= "Weed biomass\nlog response ratio"
+  )+
+  #scale_y_continuous(breaks = seq(0,0.6,.2),
+  #                   limits = c(0,.6))+
+  scale_x_continuous(breaks = c(-2,0,2),
+                     limits = c(-4, 4))+
+    geom_text_npc(npcx=0.65, npcy=.9, 
+            label = paste0("mean: -",nobs_bio$mean_pct_lab),
+            hjust = 0, color="blue")+
+  geom_text_npc(npcx=0.65, npcy=.7, label = paste0("n: ", nobs_bio$label),
+            hjust = 0, color="blue")+
+      geom_text_npc(npcx=0.1, npcy=.9, 
+                  label = "Weed\nbiomass",
+            hjust = 0, color="black")+
+
+  theme(
+        axis.title = element_blank()
+  )
+
+bio_hist_a
+```
+```{r yield_hist_a}
+yield_hist_a <- ggplot(comb_w3 %>% drop_na(LRRyield), aes(x=LRRyield))+
+  geom_density(fill="grey95")+
+  geom_rect(data = em_yield, aes(xmin = lower.CL, 
+                                 xmax = upper.CL, 
+                                 ymin=0, ymax=Inf),
+            fill="purple",
+            alpha=.6,
+            inherit.aes = T)+
+  geom_vline(xintercept = 0, color="forestgreen")+
+  geom_vline(xintercept = em_yield$LRR, linetype=2, color="blue")+
+  labs(y="Kernel density",
+       #x= "Yield\nlog response ratio"
+  )+
+  #scale_y_continuous(breaks = seq(0,0.6,.2),
+  #                   limits = c(0,.6)
+  #)+
+  scale_x_continuous(breaks = c(-2,0,2),
+                     limits = c(-4, 4)
+                     )+
+      geom_text_npc(npcx=0.65, npcy=.9, 
+            label = paste0("mean: ",nobs_yield$mean_pct_lab),
+            hjust = 0, color="blue")+
+  geom_text_npc(npcx=0.65, npcy=.7, label = paste0("n: ", nobs_yield$label),
+            hjust = 0, color="blue")+
+  
+      geom_text_npc(npcx=0.1, npcy=.9, 
+                  label = "Crop\nyield",
+            hjust = 0, color="black")+
+
+  theme(
+      axis.title = element_blank()
+  )
+
+yield_hist_a
+```
+
+```{r fig1a}
+
+layout <- "
+ #####EEEEEEEE
+ #AAAAEEEEEEEE
+ FAAAAEEEEEEEE
+ FBBBBEEEEEEEE
+ FBBBBEEEEEEEE
+ FCCCCEEEEEEEE
+ #CCCCEEEEEEEE
+ #DDDDEEEEEEEE
+"
+
+den_hist_a + #a
+  bio_hist_a + #b  
+  yield_hist_a + #c
+  wrap_elements(plot = grid::textGrob('Natural log of response\n(CC/no CC)', 
+                                      hjust = .42,
+                                      gp = gpar(fontsize = 11)
+                                      )) + #d
+  quad_plot_marg + #e
+    wrap_elements(plot = grid::textGrob('Kernel density', 
+                                        rot = 90,
+                                        gp = gpar(fontsize = 12))) + #f
+  plot_layout(design = layout)
+
+
+
+ggsave("../output/fig1a.tiff", 
+       height = 5, width = 9)
+```
 
 
 
 # Summary table  
-```{r comb_w3 }
-comb_w3 <- den_w %>%
-  rename(LRRden=LRR) %>%
-  dplyr::select(-resp) %>%
-  full_join(bio_w %>%
-              rename(LRRbio=LRR) %>%
-  dplyr::select(-resp)) %>% #241
-  dplyr::select(pub_reference,
-    pub_year,
-                study_duration,
-                soil_type,
-                pH,
-                cc_spec,
-                cc_type,
-                tillage_sys,
-                cc_term.METH,
-                add_herb,
-                cc_bio_Mgha,
-                crop,
-                weed_type=`weed type`,
-                weed.sing.com,
-                LRRyield,
-                LRRden, LRRbio
-  ) %>%
-    mutate(across(where(is.character), factor))
-
-
-comb_w3
-```
-
 ```{r comb_w3_n}
 comb_w3_n <- comb_w3 %>%
   dplyr::select_if(is.numeric) %>%
@@ -753,4 +897,12 @@ den_w %>%
   geom_smooth(aes(color=cit_th), method="lm")
 facet_wrap(~cc_term.METH2)
 ```
+
+
+# Meeting July 8th  
+Update fig 1 with new n for yield (DONE)
+Update fig 3 with abc (DONE)
+Re-run everything at alpha=.1 (DONE)
+Combine fig. 1 and fig. 5 into one panel (DONE)
+
 
