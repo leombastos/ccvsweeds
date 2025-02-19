@@ -43,8 +43,9 @@ den_w <- read_csv("../data/den_w.csv") %>%
   mutate(LRR=LRRden,
          resp="den") %>%
   mutate(across(where(is.character), factor)) %>%
-  dplyr::select(-LRRden) #%>% #n=139
+  dplyr::select(-LRRden) %>% #n=139
 #drop_na(LRRyield) #n=101
+  mutate(cc_bio_kgha=cc_bio_Mgha*1000)
 
 # bio_w
 bio_w <- read_csv("../data/bio_w.csv") %>%
@@ -73,9 +74,9 @@ comb_w3 <- den_w %>% #139
   dplyr::select(-resp) %>%
   full_join(bio_w %>% #142
               rename(LRRbio=LRR) %>%
-  dplyr::select(-resp)) %>% #241
+              dplyr::select(-resp)) %>% #241
   dplyr::select(pub_reference,
-    pub_year,
+                pub_year,
                 study_duration,
                 soil_type,
                 pH,
@@ -91,7 +92,7 @@ comb_w3 <- den_w %>% #139
                 LRRyield,
                 LRRden, LRRbio
   ) %>%
-    mutate(across(where(is.character), factor))
+  mutate(across(where(is.character), factor))
 
 
 
@@ -103,7 +104,7 @@ To get the % reduction you back transform the natural log transformed value (e.g
 ```{r den_hist }
 options(contrasts = c("contr.sum", "contr.poly"))
 
-em_den <- lmer(LRR ~ 1 + (1|pub_reference), data = den_w) %>%
+em_den <- lmerTest::lmer(LRR ~ 1 + (1|pub_reference), data = den_w) %>%
   emmeans(~1) %>%
   confint(adjust = "none", level = 0.9) %>%
   as.data.frame() %>%
@@ -118,7 +119,14 @@ nobs_den <- den_w %>%
   mutate(LRR=em_den$LRR) %>%
   mutate(eRR=exp(LRR)) %>%
   mutate(mean_pct=round((1-eRR)*100,0)) %>%
-  mutate(mean_pct_lab=paste0(mean_pct,"%"))
+  mutate(mean_pct_lab=paste0(mean_pct,"%")) %>%
+  mutate(pvalue=lmerTest::lmer(LRR ~ 1 + (1|pub_reference), 
+                               data = den_w) %>%
+           summary() %>%
+           pluck(coefficients) %>%
+           as.data.frame() %>%
+           pull(`Pr(>|t|)`)) %>%
+  mutate(pvalue=sprintf("%.4f", pvalue))
 
 den_hist <- ggplot(den_w, aes(x=LRR))+
   geom_density(fill="grey95")+
@@ -137,11 +145,14 @@ den_hist <- ggplot(den_w, aes(x=LRR))+
                      limits = c(0,.6)
   )+
   geom_text_npc(npcx=0.1, npcy=.9, 
-            label = paste0("mean: -",nobs_den$mean_pct_lab),
-            hjust = 0, color="blue")+
+                label = paste0("mean: -",nobs_den$mean_pct_lab),
+                hjust = 0, color="blue")+
   geom_text_npc(npcx=0.1, npcy=.85, label = paste0("n: ", nobs_den$label),
-            hjust = 0, color="blue")+
-  theme(axis.title.x = element_blank())
+                hjust = 0, color="blue")+
+    geom_text_npc(npcx=0.1, npcy=.8, 
+                  label = paste0("p-value: ", nobs_den$pvalue),
+                hjust = 0, color="blue")+
+  theme(axis.title = element_blank())
 
 den_hist
 ```
@@ -151,7 +162,7 @@ options(contrasts = c("contr.sum", "contr.poly"))
 
 em_bio <- lmer(LRR ~ 1 + (1|pub_reference), data = bio_w) %>%
   emmeans(~1) %>%
-    confint(adjust = "none", level = 0.9) %>%
+  confint(adjust = "none", level = 0.9) %>%
   as.data.frame() %>%
   rename(LRR=emmean)
 
@@ -164,7 +175,15 @@ nobs_bio <- bio_w %>%
   mutate(LRR=em_bio$LRR) %>%
   mutate(eRR=exp(LRR)) %>%
   mutate(mean_pct=round((1-eRR)*100,0)) %>%
-  mutate(mean_pct_lab=paste0(mean_pct,"%"))
+  mutate(mean_pct_lab=paste0(mean_pct,"%")) %>%
+  mutate(mean_pct_lab=paste0(mean_pct,"%")) %>%
+  mutate(pvalue=lmerTest::lmer(LRR ~ 1 + (1|pub_reference), 
+                               data = bio_w) %>%
+           summary() %>%
+           pluck(coefficients) %>%
+           as.data.frame() %>%
+           pull(`Pr(>|t|)`)) %>%
+  mutate(pvalue=sprintf("%.4f", pvalue))
 
 bio_hist <- ggplot(bio_w, aes(x=LRR))+
   geom_density(fill="grey95")+
@@ -183,13 +202,17 @@ bio_hist <- ggplot(bio_w, aes(x=LRR))+
   #scale_y_continuous(breaks = seq(0,0.6,.2),
   #                   limits = c(0,.6))+
   scale_x_continuous(breaks = c(-2,0,2))+
-    geom_text_npc(npcx=0.1, npcy=.9, 
-            label = paste0("mean: -",nobs_bio$mean_pct_lab),
-            hjust = 0, color="blue")+
+  geom_text_npc(npcx=0.1, npcy=.9, 
+                label = paste0("mean: -",nobs_bio$mean_pct_lab),
+                hjust = 0, color="blue")+
   geom_text_npc(npcx=0.1, npcy=.85, label = paste0("n: ", nobs_bio$label),
-            hjust = 0, color="blue")+
-  theme(axis.title.y = element_blank(),
-        axis.title.x = element_blank()
+                hjust = 0, color="blue")+
+      geom_text_npc(npcx=0.1, npcy=.8, 
+                  label = paste0("p-value: ", nobs_bio$pvalue),
+                hjust = 0, color="blue")+
+
+  theme(
+    axis.title.x = element_blank()
   )
 
 bio_hist
@@ -235,13 +258,13 @@ yield_hist <- ggplot(comb_w3 %>% drop_na(LRRyield), aes(x=LRRyield))+
   #                   limits = c(0,.6)
   #)+
   scale_x_continuous(breaks = c(-2,0,2))+
-      geom_text_npc(npcx=0.1, npcy=.9, 
-            label = paste0("mean: ",nobs_yield$mean_pct_lab),
-            hjust = 0, color="blue")+
+  geom_text_npc(npcx=0.1, npcy=.9, 
+                label = paste0("mean: ",nobs_yield$mean_pct_lab),
+                hjust = 0, color="blue")+
   geom_text_npc(npcx=0.1, npcy=.85, label = paste0("n: ", nobs_yield$label),
-            hjust = 0, color="blue")+
+                hjust = 0, color="blue")+
   theme(axis.title.y = element_blank(),
-      axis.title.x = element_blank()
+        axis.title.x = element_blank()
   )
 
 yield_hist
@@ -250,7 +273,7 @@ yield_hist
 ```
 
 ```{r fig1}
-(den_hist + bio_hist + yield_hist) /  
+(bio_hist + den_hist) / #+ yield_hist) /  
   wrap_elements(plot = grid::textGrob('Natural log of response (CC/no CC)'))+
   plot_layout(heights=c(15,1))
 
@@ -289,10 +312,11 @@ states <- us_states() %>%
                              "Alaska",
                              "Puerto Rico"))) %>%
   st_transform(crs = 4326) %>%
-  filter(state_abbr %in% unique(comb_sf$loc_state))
+  filter(state_abbr %in% unique(comb_sf$loc_state) |
+           state_abbr == "LA")
 
 
-states
+states 
 ```
 
 ```{r nstudies_loc}
@@ -336,7 +360,7 @@ ggplot()+
   scale_fill_viridis_d()+
   labs(fill="Num. of\ncomparisons")+
   guides(fill = guide_legend(override.aes = list(size = .4)))+
-  theme(legend.position = c(.13,.25),
+  theme(legend.position = c(.88,.25),
         axis.title = element_blank(),
         legend.background = element_rect(size=.1)
   )
@@ -375,12 +399,16 @@ den_cit_w <- den_w %>%
     weed.spp,
     LRR,
     #LRRyield
-  )
+  ) %>%
+  mutate(cc_bio_kgha=cc_bio_Mgha*1000) %>%
+  dplyr::select(-cc_bio_Mgha)
 ```
 
 ```{r den_cit_mod}
 den_cit_mod <- ctree(LRR ~ .-pub_reference,
-                     data = den_cit_w,control = partykit::ctree_control(
+                     data = den_cit_w,
+                     control = partykit::ctree_control(
+                       alpha=.1,
                        maxsurrogate = 3,
                        saveinfo=T))
 
@@ -425,6 +453,12 @@ den_cit_w2 <- den_cit_w %>%
          pred=factor(pred))
 
 den_cit_w2
+
+den_cit_w2 %>%
+  group_by(pred) %>%
+  summarise(min=min(cc_bio_kgha, na.rm = T),
+            max=max(cc_bio_kgha, na.rm = T))
+
 ```
 
 ```{r den_cit_lm}
@@ -442,7 +476,11 @@ den_cit_means <- den_cit_lm %>%
   mutate(id=as.numeric(as.character(pred))) %>%
   mutate(letter=trimws(.group))
 
-den_cit_means
+den_cit_means %>%
+  rownames_to_column() %>%
+  dplyr::select(node=pred,
+                mean=emmean,
+                letter=.group)
 ```
 
 ```{r den_cit_plot }
@@ -455,9 +493,9 @@ den_cit_plot <- ggparty(den_cit_mod, terminal_space = .33)+
   # 2. Inner nodes label
   geom_node_label(aes(),
                   line_list = list(
-                    aes(label = paste("Node", id)),
+                    aes(label = paste("Node~", id)),
                     aes(label = splitvar),
-                    aes(label = paste0(" N = ", nodesize,", p = ",round(p.value,3)))),
+                    aes(label = paste0("italic(N)==~", nodesize,"*','~p==~",round(p.value,3)))), parse=T,
                   # set graphical parameters for each line
                   line_gpar = list(
                     list(size = 8, col = "black"),
@@ -467,13 +505,14 @@ den_cit_plot <- ggparty(den_cit_mod, terminal_space = .33)+
   
   # 3. Terminal nodes label
   geom_node_label(line_list = list(
-    aes(label = paste0("Node ", id, ", N = ", nodesize))),
+    aes(label = paste0("Node~",id,"*','~italic(N)==~", nodesize))),
     # set graphical parameters for each line
     line_gpar = list(
       list(size = 8, col = "black")),
     ids = "terminal",
     nudge_x = .02,
-    nudge_y = .023)+
+    nudge_y = .023,
+    parse = T)+
   
   # 4. Terminal nodes plot
   geom_node_plot(gglist = 
@@ -520,9 +559,9 @@ ggsave(plot = den_cit_plot, bg = "white",
 
 # Fig 4 - Regression  
 ```{r den_lm}
-den_lm <- lm(LRR ~ cc_bio_Mgha, 
+den_lm <- lm(LRR ~ cc_bio_kgha, 
              data = den_w %>%
-               drop_na(LRR, cc_bio_Mgha)
+               drop_na(LRR, cc_bio_kgha)
 )
 
 den_lm 
@@ -531,7 +570,7 @@ den_lm
 ```{r den_lm_aug}
 den_lm_aug <- augment(den_lm) %>%
   mutate(.stdresid=resid(den_lm, type="pearson", scaled=T)) %>%
-  mutate(LRR_cit=ifelse(cc_bio_Mgha<3.3, "<3.3", ">3.3"))
+  mutate(LRR_cit=ifelse(cc_bio_kgha<3300, "<3300", ">3300"))
 
 den_lm_aug
 ```
@@ -544,7 +583,7 @@ cc_bio_50
 ```
 
 ```{r cit_th}
-LRR_3.3 <- coef(den_lm)[[1]] + 3.3*coef(den_lm)[[2]]
+LRR_3.3 <- coef(den_lm)[[1]] + 3300*coef(den_lm)[[2]]
 
 LRR_3.3
 
@@ -553,7 +592,7 @@ LRR_3.3
 
 ```{r fig4}
 ggplot(den_lm_aug,
-       aes(x=cc_bio_Mgha, y=LRR))+
+       aes(x=cc_bio_kgha, y=LRR))+
   geom_point(aes(fill=LRR_cit), shape = 21, 
              alpha = .6, size = 3)+
   scale_fill_manual(values = c("#009E73", "#E69F00"))+
@@ -568,10 +607,10 @@ ggplot(den_lm_aug,
              fill="gray90",
              shape = 22,
              size=3)+
-  labs(x=expression("Cover crop biomass (Mg" ~ha^-1* ")"),
+  labs(x=expression("Cover crop biomass (kg" ~ha^-1* ")"),
        y="Weed density log response ratio",
        fill="CIT threshold")+
-  scale_x_continuous(breaks = seq(0,14, 2))+
+  scale_x_continuous(breaks = seq(0,14000, 2000))+
   theme(legend.position = c(.85,.8),
         legend.background = element_rect(fill="gray85", size=.1),
         legend.key = element_rect(fill = "gray85")
@@ -653,15 +692,15 @@ quad_plot <- ggplot(comb_w2, aes(x=LRR, y=LRRyield,
        x="Weed log response ratio")+
   geom_text(data = quad_prop, aes(x=x, y=y, label=prop_lab),
             inherit.aes = F)+
-  ggtext::geom_richtext(data = quad_resp_prop, 
-                        aes(x=x, y=y, label=lab),
-                        inherit.aes = F,
-                        fill=NA,
-                        label.color=NA,
-                        size=3,
-                        nudge_y = -.8)+
+  #  ggtext::geom_richtext(data = quad_resp_prop, 
+  #                        aes(x=x, y=y, label=lab),
+  #                        inherit.aes = F,
+  #                        fill=NA,
+  #                        label.color=NA,
+  #                        size=3,
+  #                        nudge_y = -.8)+
   
-  theme(legend.position = c(.85,.905),
+  theme(legend.position = c(.89,.89),
         legend.title = element_blank(),
         legend.background = element_rect(fill="gray85", size=.1),
         legend.key = element_rect(fill = "gray85", size=1),
@@ -697,15 +736,15 @@ den_hist_a <- ggplot(den_w, aes(x=LRR))+
                      limits = c(0,.6)
   )+
   geom_text_npc(npcx=0.65, npcy=.9, 
-            label = paste0("mean: -",nobs_den$mean_pct_lab),
-            hjust = 0, color="blue")+
+                label = paste0("mean: -",nobs_den$mean_pct_lab),
+                hjust = 0, color="blue")+
   geom_text_npc(npcx=0.65, npcy=.7, label = paste0("n: ", nobs_den$label),
-            hjust = 0, color="blue")+
+                hjust = 0, color="blue")+
   
-    geom_text_npc(npcx=0.1, npcy=.9, 
-                  label = "Weed\ndensity",
-            hjust = 0, color="black")+
-
+  geom_text_npc(npcx=0.1, npcy=.9, 
+                label = "Weed\ndensity",
+                hjust = 0, color="black")+
+  
   theme(axis.title = element_blank())
 
 den_hist_a
@@ -729,17 +768,17 @@ bio_hist_a <- ggplot(bio_w, aes(x=LRR))+
   #                   limits = c(0,.6))+
   scale_x_continuous(breaks = c(-2,0,2),
                      limits = c(-4, 4))+
-    geom_text_npc(npcx=0.65, npcy=.9, 
-            label = paste0("mean: -",nobs_bio$mean_pct_lab),
-            hjust = 0, color="blue")+
+  geom_text_npc(npcx=0.65, npcy=.9, 
+                label = paste0("mean: -",nobs_bio$mean_pct_lab),
+                hjust = 0, color="blue")+
   geom_text_npc(npcx=0.65, npcy=.7, label = paste0("n: ", nobs_bio$label),
-            hjust = 0, color="blue")+
-      geom_text_npc(npcx=0.1, npcy=.9, 
-                  label = "Weed\nbiomass",
-            hjust = 0, color="black")+
-
+                hjust = 0, color="blue")+
+  geom_text_npc(npcx=0.1, npcy=.9, 
+                label = "Weed\nbiomass",
+                hjust = 0, color="black")+
+  
   theme(
-        axis.title = element_blank()
+    axis.title = element_blank()
   )
 
 bio_hist_a
@@ -763,19 +802,19 @@ yield_hist_a <- ggplot(comb_w3 %>% drop_na(LRRyield), aes(x=LRRyield))+
   #)+
   scale_x_continuous(breaks = c(-2,0,2),
                      limits = c(-4, 4)
-                     )+
-      geom_text_npc(npcx=0.65, npcy=.9, 
-            label = paste0("mean: ",nobs_yield$mean_pct_lab),
-            hjust = 0, color="blue")+
+  )+
+  geom_text_npc(npcx=0.65, npcy=.9, 
+                label = paste0("mean: ",nobs_yield$mean_pct_lab),
+                hjust = 0, color="blue")+
   geom_text_npc(npcx=0.65, npcy=.7, label = paste0("n: ", nobs_yield$label),
-            hjust = 0, color="blue")+
+                hjust = 0, color="blue")+
   
-      geom_text_npc(npcx=0.1, npcy=.9, 
-                  label = "Crop\nyield",
-            hjust = 0, color="black")+
-
+  geom_text_npc(npcx=0.1, npcy=.9, 
+                label = "Crop\nyield",
+                hjust = 0, color="black")+
+  
   theme(
-      axis.title = element_blank()
+    axis.title = element_blank()
   )
 
 yield_hist_a
@@ -800,11 +839,11 @@ den_hist_a + #a
   wrap_elements(plot = grid::textGrob('Natural log of response\n(CC/no CC)', 
                                       hjust = .42,
                                       gp = gpar(fontsize = 11)
-                                      )) + #d
+  )) + #d
   quad_plot_marg + #e
-    wrap_elements(plot = grid::textGrob('Kernel density', 
-                                        rot = 90,
-                                        gp = gpar(fontsize = 12))) + #f
+  wrap_elements(plot = grid::textGrob('Kernel density', 
+                                      rot = 90,
+                                      gp = gpar(fontsize = 12))) + #f
   plot_layout(design = layout)
 
 
@@ -813,6 +852,50 @@ ggsave("../output/fig1a.tiff",
        height = 5, width = 9)
 ```
 
+# Fig 1b
+```{r yield_hist_b}
+yield_hist_b <- ggplot(comb_w3 %>% drop_na(LRRyield), aes(x=LRRyield))+
+  geom_density(fill="grey95")+
+  geom_rect(data = em_yield, aes(xmin = lower.CL, 
+                                 xmax = upper.CL, 
+                                 ymin=0, ymax=Inf),
+            fill="purple",
+            alpha=.6,
+            inherit.aes = T)+
+  geom_vline(xintercept = 0, color="forestgreen")+
+  geom_vline(xintercept = em_yield$LRR, linetype=2, color="blue")+
+  labs(y="Kernel density",
+       #x= "Yield\nlog response ratio"
+  )+
+  #scale_y_continuous(breaks = seq(0,0.6,.2),
+  #                   limits = c(0,.6)
+  #)+
+  scale_x_continuous(breaks = c(-2,0,2),
+                     limits = c(-4, 4)
+  )+
+  labs(x="Crop yield log response ratio")+
+  geom_text_npc(npcx=0.1, npcy=.9, 
+                label = paste0("mean: ",nobs_yield$mean_pct_lab),
+                hjust = 0, color="blue")+
+  geom_text_npc(npcx=0.1, npcy=.8, label = paste0("n: ", nobs_yield$label),
+                hjust = 0, color="blue")+
+  
+  theme(
+    #axis.title = element_blank()
+  )
+
+yield_hist_b
+```
+```{r fig1b}
+yield_hist_b + 
+  quad_plot_marg+
+  plot_layout(widths = c(1,2)
+  )
+
+ggsave("../output/fig1b.tiff", 
+       height = 3.5, width = 8)
+
+```
 
 
 # Summary table  
@@ -905,4 +988,28 @@ Update fig 3 with abc (DONE)
 Re-run everything at alpha=.1 (DONE)
 Combine fig. 1 and fig. 5 into one panel (DONE)
 
+# Meeting Aug 23rd
+```{r}
+comb_w3 %>%
+  ggplot(aes(x=LRRden, y=LRRbio))+
+  geom_point()+
+  geom_smooth(method="lm")+
+  coord_equal()+
+  geom_hline(yintercept = -.32)
+
+lmerTest::lmer(LRRden ~ LRRbio + (1|pub_reference),
+               data = comb_w3) %>%
+  summary()
+glance()
+
+
+```
+
+```{r}
+lm(LRRden ~ LRRbio,
+   data = comb_w3) %>%
+  summary()
+```
+Add p-values to histograms
+send histograms and map with LA
 

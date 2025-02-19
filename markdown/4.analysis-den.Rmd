@@ -205,7 +205,8 @@ den_w %>%
 ```
 
 ```{r contrasts}
-themods <- c("cc_type", "cc_term.METH2", 
+themods <- c("cc_type", 
+             "cc_term.METH2", 
              "tillage_sys")
 
 denmc <- RunModelModsContrastFun(mydata = den_w, 
@@ -220,10 +221,12 @@ for (i in 2:length(themods)){
 }
 
 ```
+
 ```{r continuous modifiers}
 # jsut for reference
 thecontmods <- c("pub_year", 
-                 "lat", "long",
+                 "lat", 
+                 "long",
                  "cc_bio_Mgha")
 
 
@@ -238,6 +241,8 @@ for (i in 2:length(thecontmods)){
 }
 
 ```
+
+
 ```{r}
 contmodres <- denmcont
 

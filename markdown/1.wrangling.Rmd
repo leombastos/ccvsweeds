@@ -70,6 +70,21 @@ df_w %>%
   glimpse
 ```
 
+```{r}
+df_w %>%
+  distinct(study, wgt)
+
+df_w %>%
+  filter(study == 7)
+
+summary(df_w$wgt)
+
+df_w %>%
+  dplyr::select(sample_size, wgt) %>%
+  summary()
+
+```
+
 
 ```{r separating resp}
 df_w %>%
